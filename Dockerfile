@@ -29,6 +29,11 @@ COPY --from=builder /app/package.json ./
 # Install only production dependencies with Bun
 RUN bun install --production
 
+# Create the start.sh script that docker-entrypoint.sh expects
+RUN printf '#!/bin/sh\n\n# Print environment for debugging\necho "DATABASE_URL is: $DATABASE_URL"\n\n# Run the application\nexec bun index.js\n' > /app/start.sh && \
+    chmod +x /app/start.sh && \
+    cat /app/start.sh
+
 # Expose the port the app will run on
 EXPOSE 3000
 
@@ -36,5 +41,5 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Start the application with Bun
-CMD ["bun", "index.js"]
+# Start the application using the script
+CMD ["/app/start.sh"]
