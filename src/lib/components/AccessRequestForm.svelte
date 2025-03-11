@@ -3,7 +3,7 @@
   import { page } from '$app/stores';
   import StatementOfValues from './StatementOfValues.svelte';
   import type { ActionResult } from '@sveltejs/kit';
-  import { env } from '$env/dynamic/private';
+  import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
   
   // Define TypeScript interfaces for our data structures
   interface AccessRequestFormData {
@@ -168,8 +168,8 @@
     if (typeof window !== 'undefined' && turnstileLoaded) {
       const turnstileWindow = window as TurnstileWindow;
       if (turnstileWindow.turnstile) {
-        // Get the sitekey from environment variables
-        const sitekey = env.PUBLIC_TURNSTILE_SITE_KEY || '';
+        // Get the sitekey from public environment variables
+        const sitekey = PUBLIC_TURNSTILE_SITE_KEY || '';
         console.log('Rendering Turnstile widget with sitekey:', sitekey);
         
         try {

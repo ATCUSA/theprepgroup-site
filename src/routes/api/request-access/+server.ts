@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query, getUserByEmail, getAccessRequestByEmail, createAccessRequest } from '$lib/server/db/index.js';
+import { query, getUserByEmail, getAccessRequestByEmail, createAccessRequest } from '$lib/server/db';
 import { env } from '$env/dynamic/private';
 
 // Define interface for request body

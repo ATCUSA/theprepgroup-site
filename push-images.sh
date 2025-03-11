@@ -71,9 +71,12 @@ if [ -z "$USERNAME" ]; then
   exit 1
 fi
 
-# Set registry URL based on selected registry
+# Convert username to lowercase for display purposes only
+# The actual lowercase conversion for the image name happens later
+USERNAME_DISPLAY=$USERNAME
+
+# Set registry type based on selected registry
 if [ "$REGISTRY" == "github" ]; then
-  REGISTRY_URL="ghcr.io/$USERNAME"
   echo -e "${GREEN}Using GitHub Container Registry (ghcr.io)${NC}"
   
   # Check if GitHub CLI is installed and user is logged in
@@ -90,14 +93,32 @@ if [ "$REGISTRY" == "github" ]; then
     fi
   fi
   
-  # Login to GitHub Container Registry
+  # Login to GitHub Container Registry using GitHub CLI token
   echo -e "${YELLOW}Logging in to GitHub Container Registry...${NC}"
-  echo -e "${YELLOW}You may be prompted for your GitHub Personal Access Token.${NC}"
-  echo -e "${YELLOW}Make sure your token has 'write:packages' permission.${NC}"
-  docker login ghcr.io -u $USERNAME
+  echo -e "${YELLOW}Attempting to use GitHub CLI token for authentication...${NC}"
+  
+  # Try to get token from GitHub CLI
+  if command -v gh &> /dev/null && gh auth status &> /dev/null; then
+    echo -e "${GREEN}Using GitHub CLI token for authentication${NC}"
+    GH_TOKEN=$(gh auth token)
+    if [ -n "$GH_TOKEN" ]; then
+      echo -e "${GREEN}Successfully retrieved token from GitHub CLI${NC}"
+      echo $GH_TOKEN | docker login ghcr.io -u $USERNAME --password-stdin
+    else
+      echo -e "${YELLOW}Could not retrieve token from GitHub CLI. Please enter your token manually:${NC}"
+      echo -e "${YELLOW}IMPORTANT: Make sure your token has 'write:packages' AND 'contents:read' permissions.${NC}"
+      echo -e "${YELLOW}For fine-grained tokens, enable 'Contents: Read and write' and 'Packages: Read and write'${NC}"
+      docker login ghcr.io -u $USERNAME
+    fi
+  else
+    echo -e "${YELLOW}GitHub CLI not available or not logged in.${NC}"
+    echo -e "${YELLOW}Please enter your GitHub Personal Access Token manually.${NC}"
+    echo -e "${YELLOW}IMPORTANT: Make sure your token has 'write:packages' AND 'contents:read' permissions.${NC}"
+    echo -e "${YELLOW}For fine-grained tokens, enable 'Contents: Read and write' and 'Packages: Read and write'${NC}"
+    docker login ghcr.io -u $USERNAME
+  fi
   
 elif [ "$REGISTRY" == "docker" ]; then
-  REGISTRY_URL="$USERNAME"
   echo -e "${GREEN}Using Docker Hub Registry (hub.docker.com)${NC}"
   
   # Login to Docker Hub
@@ -108,8 +129,19 @@ else
   exit 1
 fi
 
-# Full image name with registry
-FULL_IMAGE_NAME="$REGISTRY_URL/$IMAGE_NAME:$IMAGE_TAG"
+# Convert username to lowercase for Docker compatibility
+USERNAME_LOWER=$(echo $USERNAME | tr '[:upper:]' '[:lower:]')
+
+# Set registry URL based on lowercase username
+if [ "$REGISTRY" == "github" ]; then
+  REGISTRY_URL="ghcr.io/$USERNAME_LOWER"
+else
+  REGISTRY_URL="$USERNAME_LOWER"
+fi
+
+# Full image name with registry (ensuring lowercase)
+IMAGE_NAME_LOWER=$(echo $IMAGE_NAME | tr '[:upper:]' '[:lower:]')
+FULL_IMAGE_NAME="$REGISTRY_URL/$IMAGE_NAME_LOWER:$IMAGE_TAG"
 
 # Build the Docker image
 echo -e "${GREEN}Building Docker image: $FULL_IMAGE_NAME${NC}"
@@ -140,5 +172,12 @@ if [ $? -eq 0 ]; then
   echo -e "    # ... other settings"
 else
   echo -e "${RED}Error: Failed to push image to $REGISTRY.${NC}"
+  if [ "$REGISTRY" == "github" ]; then
+    echo -e "${YELLOW}If you see 'permission_denied', your token likely lacks the required permissions.${NC}"
+    echo -e "${YELLOW}For GitHub Container Registry, your token needs:${NC}"
+    echo -e "${YELLOW}  - 'write:packages' permission${NC}"
+    echo -e "${YELLOW}  - 'contents:read' permission${NC}"
+    echo -e "${YELLOW}Visit: https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry${NC}"
+  fi
   exit 1
 fi
