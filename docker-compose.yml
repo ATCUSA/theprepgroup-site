@@ -1,0 +1,39 @@
+services:
+  # SvelteKit application
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      # DATABASE_URL should be set in your host environment or .env file
+    volumes:
+      - ./data:/app/data
+    networks:
+      - app-network
+
+  # FileBrowser service
+  filebrowser:
+    image: filebrowser/filebrowser:v2
+    restart: unless-stopped
+    volumes:
+      - ./files:/srv
+      - ./filebrowser/filebrowser.db:/database/filebrowser.db
+      - ./filebrowser/settings.json:/config/settings.json
+    networks:
+      - app-network
+
+  # Cloudflare Tunnel service
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

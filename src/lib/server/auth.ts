@@ -27,11 +27,22 @@ export async function createSession(token: string, userId: string) {
 }
 
 export async function validateSessionToken(token: string) {
+	// If no token is provided, return early
+	if (!token) {
+		return { session: null, user: null };
+	}
+	
 	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
 	const [result] = await db
 		.select({
 			// Adjust user table here to tweak returned data
-			user: { id: table.user.id, username: table.user.username },
+			user: { 
+				id: table.user.id, 
+				username: table.user.username, 
+				email: table.user.email,
+				isAdmin: table.user.isAdmin,
+				createdAt: table.user.createdAt
+			},
 			session: table.session
 		})
 		.from(table.session)
@@ -67,6 +78,14 @@ export async function invalidateSession(sessionId: string) {
 	await db.delete(table.session).where(eq(table.session.id, sessionId));
 }
 
+/**
+ * Invalidate all sessions for a specific user
+ * This is useful for security purposes (force logout on all devices)
+ */
+export async function invalidateAllUserSessions(userId: string) {
+	return await db.delete(table.session).where(eq(table.session.userId, userId));
+}
+
 export function setSessionTokenCookie(event: RequestEvent, token: string, expiresAt: Date) {
 	event.cookies.set(sessionCookieName, token, {
 		expires: expiresAt,
@@ -76,6 +95,9 @@ export function setSessionTokenCookie(event: RequestEvent, token: string, expire
 
 export function deleteSessionTokenCookie(event: RequestEvent) {
 	event.cookies.delete(sessionCookieName, {
-		path: '/'
+		path: '/',
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: 'strict'
 	});
 }
